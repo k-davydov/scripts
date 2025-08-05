@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -26,7 +27,7 @@ func splitLines(s string) []string {
 }
 
 func handleGet(w http.ResponseWriter, r *http.Request) {
-	url := r.URL.Query().Get("url")
+	srcUrl := r.URL.Query().Get("srcUrl")
 	format := r.URL.Query().Get("f")
 	if format == "" {
 		format = "json"
@@ -37,15 +38,28 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if url == "" {
-		http.Error(w, "missing url parameter", http.StatusBadRequest)
+	if srcUrl == "" {
+		http.Error(w, "missing srcUrl parameter", http.StatusBadRequest)
+		return
+	}
+
+	parsedURL, err := url.Parse(srcUrl)
+	if err != nil {
+		http.Error(w, "invalid srcUrl", http.StatusBadRequest)
+		return
+	}
+	allowedHosts := map[string]bool{
+		"raw.githubusercontent.com": true,
+	}
+	if !allowedHosts[parsedURL.Host] {
+		http.Error(w, "not allowed", http.StatusForbidden)
 		return
 	}
 
 	// Fetch URL contents
-	resp, err := http.Get(url)
+	resp, err := http.Get(srcUrl)
 	if err != nil || resp.StatusCode != http.StatusOK {
-		http.Error(w, "failed to fetch url", http.StatusBadGateway)
+		http.Error(w, "failed to fetch srcUrl", http.StatusBadGateway)
 		return
 	}
 	defer resp.Body.Close()
